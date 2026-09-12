@@ -1,0 +1,15 @@
+name = "tugas-deadline"
+main = "worker.js"
+compatibility_date = "2026-09-12"
+
+# Sesuaikan ID database setelah membuat Cloudflare D1.
+# [[d1_databases]]
+# binding = "DB"
+# database_name = "tugas-deadline"
+# database_id = "GANTI_DENGAN_DATABASE_ID"
+
+# Contoh Cron Trigger:
+# [triggers]
+# crons = ["*/15 * * * *"]
+
+# Static assets dapat dikonfigurasi sesuai metode deployment Cloudflare yang kamu pilih.
