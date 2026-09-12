@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tugas Deadline</title>
+  <meta name="theme-color" content="#2563eb">
+  <style>
+    *{box-sizing:border-box}body{font-family:Arial,sans-serif;margin:0;background:#f3f6fb;color:#172033}
+    .wrap{max-width:900px;margin:auto;padding:24px}.card{background:white;border-radius:16px;padding:20px;margin-bottom:18px;box-shadow:0 5px 18px #00000012}
+    h1{margin-top:0}.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    input,button{width:100%;padding:11px;border-radius:9px;border:1px solid #d5dbea;font-size:15px}
+    button{cursor:pointer;background:#2563eb;color:white;border:0}.secondary{background:#64748b}.danger{background:#dc2626}
+    .task{border:1px solid #e1e6f0;border-radius:12px;padding:15px;margin:10px 0}.task h3{margin:0 0 7px}
+    .count{font-weight:bold;margin:8px 0}.muted{color:#64748b;font-size:13px}.actions{display:flex;gap:8px;margin-top:10px}.actions button{width:auto}
+    @media(max-width:650px){.grid{grid-template-columns:1fr}.actions{flex-wrap:wrap}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1>📚 Tugas Deadline</h1>
+    <p class="muted">Kelola tugas, deadline, countdown, dan notifikasi.</p>
+    <div class="grid">
+      <input id="title" placeholder="Nama tugas">
+      <input id="course" placeholder="Mata kuliah">
+      <input id="deadline" type="datetime-local">
+      <input id="taskId" type="hidden">
+    </div>
+    <br>
+    <div class="grid">
+      <button onclick="saveTask()">Simpan Tugas</button>
+      <button class="secondary" onclick="resetForm()">Batal / Reset</button>
+      <button onclick="enableNotifications()">🔔 Aktifkan Notifikasi</button>
+      <button class="secondary" onclick="testNotification()">🔔 Tes Notifikasi</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Daftar Tugas</h2>
+    <div id="tasks"></div>
+  </div>
+</div>
+
+<script>
+const API = "";
+let tasks = JSON.parse(localStorage.getItem("tugas_deadline") || "[]");
+
+function saveLocal(){ localStorage.setItem("tugas_deadline", JSON.stringify(tasks)); }
+function saveTask(){
+  const title=document.getElementById("title").value.trim();
+  const course=document.getElementById("course").value.trim();
+  const deadline=document.getElementById("deadline").value;
+  const id=document.getElementById("taskId").value;
+  if(!title||!deadline){alert("Nama tugas dan deadline wajib diisi.");return;}
+  if(id){ const t=tasks.find(x=>x.id===id); Object.assign(t,{title,course,deadline}); }
+  else tasks.push({id:crypto.randomUUID(),title,course,deadline});
+  saveLocal(); resetForm(); render();
+}
+function editTask(id){
+  const t=tasks.find(x=>x.id===id); if(!t)return;
+  title.value=t.title; course.value=t.course; deadline.value=t.deadline; taskId.value=id;
+  scrollTo({top:0,behavior:"smooth"});
+}
+function deleteTask(id){
+  if(confirm("Hapus tugas ini?")){tasks=tasks.filter(x=>x.id!==id);saveLocal();render();}
+}
+function resetForm(){title.value="";course.value="";deadline.value="";taskId.value="";}
+function format(ms){
+  if(ms<=0)return "Deadline telah tiba";
+  let s=Math.floor(ms/1000),d=Math.floor(s/86400);s%=86400;
+  let h=Math.floor(s/3600);s%=3600;let m=Math.floor(s/60);s%=60;
+  return `${d} hari ${h} jam ${m} menit ${s} detik`;
+}
+function render(){
+  const box=document.getElementById("tasks");
+  if(!tasks.length){box.innerHTML='<p class="muted">Belum ada tugas.</p>';return;}
+  box.innerHTML=tasks.map(t=>`
+    <div class="task">
+      <h3>${escapeHtml(t.title)}</h3>
+      <div>${escapeHtml(t.course||"Tanpa mata kuliah")}</div>
+      <div class="muted">Deadline: ${new Date(t.deadline).toLocaleString("id-ID")}</div>
+      <div class="count" data-deadline="${t.deadline}">${format(new Date(t.deadline)-Date.now())}</div>
+      <div class="actions"><button onclick="editTask('${t.id}')">Edit</button><button class="danger" onclick="deleteTask('${t.id}')">Hapus</button></div>
+    </div>`).join("");
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));}
+setInterval(()=>document.querySelectorAll(".count").forEach(e=>e.textContent=format(new Date(e.dataset.deadline)-Date.now())),1000);
+render();
+
+async function enableNotifications(){
+  if(!("Notification" in window)){alert("Browser tidak mendukung notifikasi.");return;}
+  const p=await Notification.requestPermission();
+  if(p!=="granted"){alert("Izin notifikasi belum diberikan.");return;}
+  if("serviceWorker" in navigator){
+    const reg=await navigator.serviceWorker.register("/sw.js");
+    try{
+      const sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:base64ToUint8Array("REPLACE_WITH_VAPID_PUBLIC_KEY")});
+      await fetch("/api/subscribe",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(sub.toJSON())});
+      alert("Notifikasi berhasil diaktifkan.");
+    }catch(e){alert("VAPID key belum dikonfigurasi di Worker.");}
+  }
+}
+function testNotification(){
+  if(Notification.permission==="granted") new Notification("Tes Notifikasi",{body:"Notifikasi Tugas Deadline aktif."});
+  else alert("Aktifkan notifikasi terlebih dahulu.");
+}
+function base64ToUint8Array(base64){const pad="=".repeat((4-base64.length%4)%4),s=(base64+pad).replace(/-/g,"+").replace(/_/g,"/");const raw=atob(s);return Uint8Array.from([...raw].map(c=>c.charCodeAt(0)));}
+</script>
+</body>
+</html>
